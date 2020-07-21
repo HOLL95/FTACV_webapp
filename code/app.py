@@ -730,9 +730,11 @@ harmonic_output=[Output('ramped_harm_'+str(x), 'figure') for x in range(start_ha
 
 
 def plot_harmonics(data, time, reset_button, existing_data):
+    print(reset_button)
     if reset_button==0:
         for label in ["ramped", "sinusoidal"]:
             plot_keys=existing_data[label+"_harmonics"].keys()
+            print(plot_keys)
             for key in plot_keys:
                 for i in range(0, num_harms):
                     data[label][label+"_harm_"+str(i)]["data"].append(existing_data[label+"_harmonics"][key][label+"_harm_"+str(i)]["data"][0])
