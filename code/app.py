@@ -236,7 +236,7 @@ app.layout = dbc.Container(
                             so refer to the above bullet point.
                             * There are three options for ramped plotting. The default decimates the data, which causes sampling artefacts. "Better ramped plots" removes the decimation, and the experimental "Better ramped plots"
                             uses a range of algorithms to reduced the number of points, with the introduction of some distortion.
-                            * If timing out is becoming a serious issue, please refer to the [github](https://github.com/HOLL95/FTACV_webapp), and attempt to run the program locally.
+                            * If timing out is becoming a serious issue, please refer to the [github](https://github.com/HOLL95/FTACV_webapp), and attempt to run the program sessionly.
 
                             '''
                                      )
@@ -285,7 +285,7 @@ app.layout = dbc.Container(
                 # the right 9/12ths.
                 #dcc.Graph(id='ramped_graph',figure=go.Figure(layout=dict(height=plot_height)))
                 #dcc.Graph(id='sv_graph',figure=go.Figure(layout=dict(height=plot_height))),
-                dbc.Col([dcc.Store(id="ramped_store"),dcc.Store(id="history_store", data=history_data),dcc.Store(id="harmonic_store"),
+                dbc.Col([dcc.Store(storage_type="session", id="ramped_store", ),dcc.Store(storage_type="session", id="history_store", data=history_data),dcc.Store(storage_type="session", id="harmonic_store"),
                     dbc.Tabs(
                             [
                                 dbc.Tab(label="Current-time", tab_id="r_time"),
@@ -298,7 +298,7 @@ app.layout = dbc.Container(
                             active_tab="r_time",
                         ),
                         html.Div(id="ramped-tab-content", className="p-4"),
-                        dcc.Store(id="sinusoid_store"),
+                        dcc.Store(storage_type="session", id="sinusoid_store"),
                         dbc.Tabs(
                                 [
                                     dbc.Tab(label="Current-time", tab_id="s_time"),
@@ -310,7 +310,7 @@ app.layout = dbc.Container(
                                 active_tab="s_volt",
                             ),
                         html.Div(id="sinusoidal-tab-content", className="p-4"),
-                        dcc.Store(id="dcv_store"),
+                        dcc.Store(storage_type="session", id="dcv_store"),
                         dbc.Tabs(
                                 [
                                     dbc.Tab(label="Current-time", tab_id="d_time"),
@@ -358,6 +358,7 @@ for key in parameter_names:
     State("history_store", "data")]
 )
 def move_data_to_hidden(n_clicks, ramped_data, sinusoid_data, dcv_data, harmonic_store, *stores):
+    #start=time.time()
     max_plots=2
     current_history_labels=["ramped", "sinusoidal", "dcv"]
     if n_clicks>0 and stores[-2]>0:
@@ -373,6 +374,7 @@ def move_data_to_hidden(n_clicks, ramped_data, sinusoid_data, dcv_data, harmonic
                 if harmonic_store[label] is not None:
                     plot_number=current_history["counters"][label]%max_plots
                     current_history[label+"_harmonics"][label+"_"+str(plot_number)]=harmonic_store[label]
+        #print("storage_time", time.time()-start)
         return [current_history,0]
     return [history_data,0]
 @app.callback(
@@ -393,9 +395,10 @@ def show_hide_slider(drop_down_ids):
         return {"display":"none"}
 @app.callback(
     Output("ramped-tab-content", "children"),
-    [Input("ramped_tabs", "active_tab") , Input("ramped_store", "data"), Input("history_store", "data"), Input("reset_plots", "n_clicks")],
+    [Input("ramped_tabs", "active_tab") , Input("ramped_store", "data"), Input("history_store", "modified_timestamp"), Input("reset_plots", "n_clicks")],
+    [State("history_store", "data")]
 )
-def render_ramped_tab(active_tab, data, existing_data, reset_button):
+def render_ramped_tab(active_tab, data, time, reset_button, existing_data):
     if active_tab and data is not None:
         past_plots=existing_data["ramped_plots"].keys()
         if len(past_plots)>0 and reset_button==0:
@@ -409,9 +412,10 @@ def render_ramped_tab(active_tab, data, existing_data, reset_button):
     return "Click on a tab to view"
 @app.callback(
     Output("sinusoidal-tab-content", "children"),
-    [Input("sinusoidal_tabs", "active_tab"), Input("sinusoid_store", "data"), Input("history_store", "data"),Input("reset_plots", "n_clicks")],
+    [Input("sinusoidal_tabs", "active_tab"), Input("sinusoid_store", "data"), Input("history_store", "modified_timestamp"),Input("reset_plots", "n_clicks")],
+    [State("history_store", "data")]
 )
-def render_sinusoid_tab(active_tab, data, existing_data, reset_button):
+def render_sinusoid_tab(active_tab, data, time, reset_button, existing_data):
     if active_tab and data is not None:
         past_plots=existing_data["sinusoidal_plots"].keys()
         if len(past_plots)>0 and reset_button==0:
@@ -425,9 +429,10 @@ def render_sinusoid_tab(active_tab, data, existing_data, reset_button):
     return "Click on a tab to view"
 @app.callback(
     Output("dc-tab-content", "children"),
-    [Input("dc_tabs", "active_tab"), Input("dcv_store", "data"), Input("history_store", "data"),Input("reset_plots", "n_clicks")],
+    [Input("dc_tabs", "active_tab"), Input("dcv_store", "data"), Input("history_store", "modified_timestamp"),Input("reset_plots", "n_clicks")],
+    [State("history_store", "data")]
 )
-def render_dc_tab(active_tab, data, existing_data, reset_button):
+def render_dc_tab(active_tab, data, time, reset_button, existing_data):
     if active_tab and data is not None:
         past_plots=existing_data["dcv_plots"].keys()
         if len(past_plots)>0 and reset_button==0:
@@ -466,6 +471,7 @@ harmonic_output=ramped_plots+sv_plots+DCV_plots+sinusoidal_plots+tables
                 [State("plot_buttons", "value")]
                 )
 def apply_slider_changes(n_clicks, *inputs):
+    #start=time.time()
     slider_input_len=len(table_names)
     states=inputs[:slider_input_len]
     table_data=inputs[slider_input_len]
@@ -702,7 +708,7 @@ def apply_slider_changes(n_clicks, *inputs):
             ],
             "layout": {"height":plot_height//num_harms, "margin":{"pad":0, "b":b, "t":5},"xaxis":{"title":{"text":xlabel}}, "yaxis":{"title":{"text":ylabel}} },
             })
-
+        #print("simulation_time", time.time()-start)
         return [r_right_plots]+[s_right_plots]+[d_right_plots]+[harmonics_dict]+[table_data]
 
     empty_r_plots=dict(zip(r_tab_labels, [{"layout": ramped_layout}]*len(r_tab_labels)))
@@ -712,17 +718,21 @@ def apply_slider_changes(n_clicks, *inputs):
     for i in range(0, num_harms):
         harmonics_dict["ramped"]["ramped_harm_"+str(i)]={"layout":harmonic_layout}
         harmonics_dict["sinusoidal"]["sinusoidal_harm_"+str(i)]={"layout":harmonic_layout}
+
     return [empty_r_plots]+[empty_s_plots]+[empty_d_plots]+[harmonics_dict]+[table_data]
 harmonic_output=[Output('ramped_harm_'+str(x), 'figure') for x in range(start_harm, start_harm+num_harms)]+[Output('sinusoidal_harm_'+str(x), 'figure') for x in range(start_harm, start_harm+num_harms)]
 @app.callback(
     harmonic_output,
-    [Input("harmonic_store", "data"), Input("history_store", "data"), Input("reset_plots", "n_clicks")]
+    [Input("harmonic_store", "data"), Input("history_store", "modified_timestamp"), Input("reset_plots", "n_clicks")],
+    [State("history_store", "data")]
+
 )
-def plot_harmonics(data, existing_data, reset_button):
+
+
+def plot_harmonics(data, time, reset_button, existing_data):
     if reset_button==0:
         for label in ["ramped", "sinusoidal"]:
             plot_keys=existing_data[label+"_harmonics"].keys()
-            #print(plot_keys, "plot_keys")
             for key in plot_keys:
                 for i in range(0, num_harms):
                     data[label][label+"_harm_"+str(i)]["data"].append(existing_data[label+"_harmonics"][key][label+"_harm_"+str(i)]["data"][0])
@@ -730,4 +740,4 @@ def plot_harmonics(data, existing_data, reset_button):
     harmonic_plots=[data["ramped"]["ramped_harm_"+str(i)] for i in range(0, num_harms)]+[data["sinusoidal"]["sinusoidal_harm_"+str(i)] for i in range(0, num_harms)]
     return harmonic_plots
 if __name__ == '__main__':
-    app.run_server(host='0.0.0.0', port=8050, debug=False)
+    app.run_server(host='0.0.0.0', port=8050, debug=True)
