@@ -201,14 +201,21 @@ controls = dbc.Card([dbc.FormGroup([
                                 ),]),
                                 dbc.Button("Apply", id="submit-button-state",
                                            color="primary", block=True, n_clicks=0),
-                                dbc.Button("Reset", id="reset_params",
-                                           color="primary", block=True, n_clicks=0)
+                                dbc.Button("Save plots", id="save_plot_state",
+                                          color="primary", block=True, n_clicks=0),
+                                dbc.Button("Reset parameters", id="reset_params",
+                                       color="danger", block=True, n_clicks=0),
+                                dbc.Button("Clear saved plots", id="reset_plots",
+                                           color="danger", block=True, n_clicks=0)
+
 
                                ],body=True)
 
 
 ramped_harm_init=[dcc.Graph(id="ramped_harm_"+str(x),figure=go.Figure(layout=dict(height=plot_height//num_harms, margin={"pad":0, "b":0, "t":0}))) for x in range(start_harm, start_harm+num_harms)]
-sinusoidal_harm_init=[dcc.Graph(id="sv_harm_"+str(x),figure=go.Figure(layout=dict(height=plot_height//num_harms, margin={"pad":0, "b":0, "t":0}))) for x in range(start_harm, start_harm+num_harms)]
+sinusoidal_harm_init=[dcc.Graph(id="sinusoidal_harm_"+str(x),figure=go.Figure(layout=dict(height=plot_height//num_harms, margin={"pad":0, "b":0, "t":0}))) for x in range(start_harm, start_harm+num_harms)]
+history_data={"ramped_plots":{}, "sinusoidal_plots":{}, "dcv_plots":{},"ramped_harmonics":{}, "sinusoidal_harmonics":{},
+                "counters":{"ramped":0, "dcv":0, "sinusoidal":0}}
 app.layout = dbc.Container(
     [
         dbc.Jumbotron(
@@ -217,17 +224,17 @@ app.layout = dbc.Container(
                     [
                         html.H1("FTACVSIM", className="display-3"),
                         html.P(
-                            "Interactively simulate different electrochemical parameters and the effects on three electrochemical experiments; - Ramped Fourier transform AC voltammetry,sinusoidal voltammetry and DC voltammetry. ",
+                            "Interactively simulate different electrochemical parameters and the effects on three electrochemical experiments - ramped Fourier transform AC voltammetry,sinusoidal voltammetry and DC voltammetry. ",
                             className="lead",
                         ),
                         html.Hr(className="my-2"),
                         dcc.Markdown('''
-                            *Currently not implemented - plotting the results of multiple different simulations.*
+                            * To keep the results of the simulation, click the "Save plots" button. A new plot will be added, which is a copy of the current simulation. The results of up to two simulations can be saved in this manner.
                             * If you are accessing this simulation program online, heroku sets a limit of 30 seconds before timing out. If this occurs, nothing will happen after you click apply (i.e. the name of the browser tab will switch
                             from "Updating" to "FTACVSIM" without any changes occuring). If this happens, try only simualting one or two experiments (the ramped experiment is by far the slowest to simulate)
                             * Certain combinations of parameters, particularly high Ru and CdlE1-3 values will cause the static solver to crash. If this happens try the adaptive solver. However, this is very slow,
                             so refer to the above bullet point.
-                            * There are three options for ramped plotting. The default decimates the data, which causes sampling artefacts. "Better ramped plots" removes the decimation, and the expereimental "Better ramped plots"
+                            * There are three options for ramped plotting. The default decimates the data, which causes sampling artefacts. "Better ramped plots" removes the decimation, and the experimental "Better ramped plots"
                             uses a range of algorithms to reduced the number of points, with the introduction of some distortion.
                             * If timing out is becoming a serious issue, please refer to the [github](https://github.com/HOLL95/FTACV_webapp), and attempt to run the program locally.
 
@@ -241,7 +248,7 @@ app.layout = dbc.Container(
             className="jumbotron bg-white text-dark"
         ),
         dbc.Row([
-        dbc.Col(dbc.ListGroup([dbc.ListGroupItemHeading("Ramped plot options"),dcc.RadioItems(
+        dbc.Col(dbc.ListGroup([dbc.ListGroupItemHeading("ramped plot options"),dcc.RadioItems(
             options=[
                 {"label":"Decimated ramped plots", "value":"decimation"},
                 {'label': 'Better ramped plots (slow tab switching)', 'value': 'no_decimation'},
@@ -252,7 +259,7 @@ app.layout = dbc.Container(
         )])) ,
         dbc.Col(dbc.ListGroup([dbc.ListGroupItemHeading("Simulation experiments"),dcc.Checklist(
             options=[
-                {'label': 'Ramped', 'value': 'r_freeze'},
+                {'label': 'ramped', 'value': 'r_freeze'},
                 {'label': 'Sinusoidal', 'value': 's_freeze'},
                 {'label': 'DC', 'value': 'd_freeze'}
             ],
@@ -262,7 +269,7 @@ app.layout = dbc.Container(
         dbc.Col(dbc.ListGroup([dbc.ListGroupItemHeading("Adaptive simulation"),
         dcc.Checklist(
             options=[
-                {'label': 'Ramped', 'value': 'r_scipy'},
+                {'label': 'ramped', 'value': 'r_scipy'},
                 {'label': 'Sinusoidal', 'value': 's_scipy'},
                 {'label': 'DC', 'value': 'd_scipy'}
             ],
@@ -278,7 +285,7 @@ app.layout = dbc.Container(
                 # the right 9/12ths.
                 #dcc.Graph(id='ramped_graph',figure=go.Figure(layout=dict(height=plot_height)))
                 #dcc.Graph(id='sv_graph',figure=go.Figure(layout=dict(height=plot_height))),
-                dbc.Col([dcc.Store(id="ramped_store"),dcc.Store(id="ramped_store_2"),
+                dbc.Col([dcc.Store(id="ramped_store"),dcc.Store(id="history_store", data=history_data),dcc.Store(id="harmonic_store"),
                     dbc.Tabs(
                             [
                                 dbc.Tab(label="Current-time", tab_id="r_time"),
@@ -291,7 +298,7 @@ app.layout = dbc.Container(
                             active_tab="r_time",
                         ),
                         html.Div(id="ramped-tab-content", className="p-4"),
-                        dcc.Store(id="sinusoid_store"),dcc.Store(id="sinusoid_store_2"),
+                        dcc.Store(id="sinusoid_store"),
                         dbc.Tabs(
                                 [
                                     dbc.Tab(label="Current-time", tab_id="s_time"),
@@ -303,7 +310,7 @@ app.layout = dbc.Container(
                                 active_tab="s_volt",
                             ),
                         html.Div(id="sinusoidal-tab-content", className="p-4"),
-                        dcc.Store(id="dcv_store"),dcc.Store(id="dcv_store_2"),
+                        dcc.Store(id="dcv_store"),
                         dbc.Tabs(
                                 [
                                     dbc.Tab(label="Current-time", tab_id="d_time"),
@@ -320,7 +327,6 @@ app.layout = dbc.Container(
                         ,md=5),],align="top"
                 ),
     ],
-    # fluid is set to true so that the page reacts nicely to different sizes etc.
     fluid=True,
 )
 def running_reduction(series, N):
@@ -340,7 +346,35 @@ for key in parameter_names:
            Output(component_id=key+"_slider_id", component_property='hidden')],
            [Input(component_id=key+"_slider", component_property='id'),
            Input(component_id="parameter_list", component_property="value")],)(show_hide_element)
-
+@app.callback(
+    [Output("history_store", "data"), Output("reset_plots", "n_clicks")],
+    [Input("save_plot_state", "n_clicks")],
+    [State("ramped_store", "data"),
+    State("sinusoid_store", "data"),
+    State("dcv_store", "data"),
+    State("harmonic_store", "data"),
+    State("reset_plots", "n_clicks"),
+    State("submit-button-state", "n_clicks"),
+    State("history_store", "data")]
+)
+def move_data_to_hidden(n_clicks, ramped_data, sinusoid_data, dcv_data, harmonic_store, *stores):
+    max_plots=2
+    current_history_labels=["ramped", "sinusoidal", "dcv"]
+    if n_clicks>0 and stores[-2]>0:
+        left_plots=dict(zip(current_history_labels, [ramped_data, sinusoid_data, dcv_data]))
+        current_history=stores[-1]
+        for label in current_history_labels:
+            if left_plots[label] is not None:
+                current_history["counters"][label]+=1
+                plot_number=current_history["counters"][label]%max_plots
+                current_history[label+"_plots"][label+"_"+str(plot_number)]=left_plots[label]
+            if label is not "dcv":
+                print(harmonic_store.keys())
+                if harmonic_store[label] is not None:
+                    plot_number=current_history["counters"][label]%max_plots
+                    current_history[label+"_harmonics"][label+"_"+str(plot_number)]=harmonic_store[label]
+        return [current_history,0]
+    return [history_data,0]
 @app.callback(
     Output("slider_group", "style"),
     [Input("parameter_list", "value")]
@@ -359,28 +393,52 @@ def show_hide_slider(drop_down_ids):
         return {"display":"none"}
 @app.callback(
     Output("ramped-tab-content", "children"),
-    [Input("ramped_tabs", "active_tab"), Input("ramped_store", "data")],
+    [Input("ramped_tabs", "active_tab") , Input("ramped_store", "data"), Input("history_store", "data"), Input("reset_plots", "n_clicks")],
 )
-def render_ramped_tab(active_tab, data):
+def render_ramped_tab(active_tab, data, existing_data, reset_button):
     if active_tab and data is not None:
-        return  dcc.Graph(figure=data[active_tab])#layout=dict(height=plot_height))
-    return "No tab selected"
+        past_plots=existing_data["ramped_plots"].keys()
+        if len(past_plots)>0 and reset_button==0:
+            for key in past_plots:
+                existing_data["ramped_plots"][key][active_tab]["data"][0]["name"]=key
+                data[active_tab]["data"].append(existing_data["ramped_plots"][key][active_tab]["data"][0])
+            #data[active_tab]["data"]=apply_data
+            return dcc.Graph(figure=data[active_tab])
+        else:
+            return  dcc.Graph(figure=data[active_tab])#layout=dict(height=plot_height))
+    return "Click on a tab to view"
 @app.callback(
     Output("sinusoidal-tab-content", "children"),
-    [Input("sinusoidal_tabs", "active_tab"), Input("sinusoid_store", "data")],
+    [Input("sinusoidal_tabs", "active_tab"), Input("sinusoid_store", "data"), Input("history_store", "data"),Input("reset_plots", "n_clicks")],
 )
-def render_sinusoid_tab(active_tab, data):
+def render_sinusoid_tab(active_tab, data, existing_data, reset_button):
     if active_tab and data is not None:
-        return  dcc.Graph(figure=data[active_tab])
-    return "No tab selected"
+        past_plots=existing_data["sinusoidal_plots"].keys()
+        if len(past_plots)>0 and reset_button==0:
+            for key in past_plots:
+                existing_data["sinusoidal_plots"][key][active_tab]["data"][0]["name"]=key
+                data[active_tab]["data"].append(existing_data["sinusoidal_plots"][key][active_tab]["data"][0])
+            #data[active_tab]["data"]=apply_data
+            return dcc.Graph(figure=data[active_tab])
+        else:
+            return  dcc.Graph(figure=data[active_tab])#layout=dict(height=plot_height))
+    return "Click on a tab to view"
 @app.callback(
     Output("dc-tab-content", "children"),
-    [Input("dc_tabs", "active_tab"), Input("dcv_store", "data")],
+    [Input("dc_tabs", "active_tab"), Input("dcv_store", "data"), Input("history_store", "data"),Input("reset_plots", "n_clicks")],
 )
-def render_dc_tab(active_tab, data):
+def render_dc_tab(active_tab, data, existing_data, reset_button):
     if active_tab and data is not None:
-        return  dcc.Graph(figure=data[active_tab])#layout=dict(height=plot_height))
-    return "No tab selected"""
+        past_plots=existing_data["dcv_plots"].keys()
+        if len(past_plots)>0 and reset_button==0:
+            for key in past_plots:
+                existing_data["dcv_plots"][key][active_tab]["data"][0]["name"]=key
+                data[active_tab]["data"].append(existing_data["dcv_plots"][key][active_tab]["data"][0])
+            #data[active_tab]["data"]=apply_data
+            return dcc.Graph(figure=data[active_tab])
+        else:
+            return  dcc.Graph(figure=data[active_tab])#layout=dict(height=plot_height))
+    return "Click on a tab to view"
 @app.callback(
     [Output(x+"_slider", "value") for x in table_names],
     [Input('reset_params', 'n_clicks')]
@@ -390,11 +448,12 @@ def reset_parameters(button_click):
     slider_vals=[orig_table_dict[x] for x in orig_table_dict.keys()]
     return slider_vals
 
-ramped_plots=[Output('ramped_store', 'data')]+[Output('ramped_harm_'+str(x), 'figure') for x in range(start_harm, start_harm+num_harms)]
-sv_plots=[Output('sinusoid_store', 'data')]+[Output('sv_harm_'+str(x), 'figure') for x in range(start_harm, start_harm+num_harms)]
+ramped_plots=[Output('ramped_store', 'data')]#
+sv_plots=[Output('sinusoid_store', 'data')]#[Output('sinusoidal_harm_'+str(x), 'figure') for x in range(start_harm, start_harm+num_harms)]
 DCV_plots=[Output('dcv_store', 'data')]
+sinusoidal_plots=[Output('harmonic_store', 'data')]
 tables=[Output("param_table", "data")]
-harmonic_output=ramped_plots+sv_plots+DCV_plots+tables
+harmonic_output=ramped_plots+sv_plots+DCV_plots+sinusoidal_plots+tables
 @app.callback(
                 harmonic_output,
                 [Input('submit-button-state', 'n_clicks')],
@@ -415,7 +474,7 @@ def apply_slider_changes(n_clicks, *inputs):
     freeze_buttons=inputs[slider_input_len+3]
     adaptive_buttons=inputs[slider_input_len+4]
     plot_buttons=inputs[slider_input_len+5]
-    print(disp_bins, freeze_buttons, adaptive_buttons)
+    #print(disp_bins, freeze_buttons, adaptive_buttons)
     dispersion_optim_list=[]
     if drop_down_opts is not None:
         dispersion_groups={"E_0":["E0_mean", "E0_std"], "k_0":["k0_shape", "k0_scale"], "alpha":["alpha_mean", "alpha_std"]}
@@ -455,7 +514,7 @@ def apply_slider_changes(n_clicks, *inputs):
     SV_new=single_electron(None, SV.dim_dict, SV.simulation_options, SV.other_values, param_bounds)
     DCV_new=single_electron(None, DCV.dim_dict, DCV.simulation_options, DCV.other_values, param_bounds)
     if dispersion==True:
-        print(dispersion_optim_list)
+        #print(dispersion_optim_list)
         RV_new.simulation_options["dispersion_bins"]=[disp_bins]
         SV_new.simulation_options["dispersion_bins"]=[disp_bins]
         DCV_new.simulation_options["dispersion_bins"]=[disp_bins]
@@ -573,7 +632,7 @@ def apply_slider_changes(n_clicks, *inputs):
                 r_x_plot=r_x_args[i]
                 r_y_plot=r_y_args[i]
             r_right_plots[r_tab_labels[i]]={"data": [
-                {"x":r_x_plot, "y":r_y_plot , "type": "scattergl", "name": "Ramped", "render_mode":"webgl"},
+                {"x":r_x_plot, "y":r_y_plot , "type": "scattergl", "name":"Current sim", "render_mode":"webgl"},
             ],
             "layout": {"height":plot_height, "xaxis":{"title":{"text":x_labels[i]}}, "yaxis":{"title":{"text":y_labels[i]}}},
             }
@@ -585,7 +644,7 @@ def apply_slider_changes(n_clicks, *inputs):
                 s_x_plot=s_x_args[i]
                 s_y_plot=s_y_args[i]
             s_right_plots[s_tab_labels[i]]={"data": [
-                {"x":s_x_plot, "y": s_y_plot, "type": "scattergl", "name": "Ramped", "render_mode":"webgl"},
+                {"x":s_x_plot, "y": s_y_plot, "type": "scattergl", "name": "Current sim", "render_mode":"webgl"},
             ],
             "layout": {"height":plot_height, "xaxis":{"title":{"text":x_labels[i]}}, "yaxis":{"title":{"text":y_labels[i]}}},
             }
@@ -597,13 +656,12 @@ def apply_slider_changes(n_clicks, *inputs):
                     d_x_plot=d_x_args[i]
                     d_y_plot=d_y_args[i]
                 d_right_plots[d_tab_labels[i]]={"data": [
-                    {"x":d_x_plot, "y": d_y_plot, "type": "scattergl", "name": "Ramped", "render_mode":"webgl"},
+                    {"x":d_x_plot, "y": d_y_plot, "type": "scattergl", "name": "Current sim", "render_mode":"webgl"},
                 ],
                 "layout": {"height":plot_height, "xaxis":{"title":{"text":x_labels[i]}}, "yaxis":{"title":{"text":y_labels[i]}}},
                 }
 
-
-        return_arg=[r_right_plots]
+        harmonics_dict={"ramped":{}, "sinusoidal":{}}
         for i in range(0, num_harms):
             xlabel=""
             ylabel=""
@@ -619,12 +677,11 @@ def apply_slider_changes(n_clicks, *inputs):
             else:
                 r_x_plot=RV_plot_times
                 r_y_plot=np.abs(ramped_harmonics[i,:][0::10])
-            return_arg.append({"data": [
-                {"x":r_x_plot, "y":r_y_plot , "type": "line", "name": "Ramped_harm"+str(i), "render_mode":"webgl"},
+            harmonics_dict["ramped"]["ramped_harm_"+str(i)]={"data": [
+                {"x":r_x_plot, "y":r_y_plot , "type": "line", "name": None, "render_mode":"webgl"},
             ],
             "layout": {"height":plot_height//num_harms, "margin":{"pad":0, "b":b, "t":5},"xaxis":{"title":{"text":xlabel}}, "yaxis":{"title":{"text":ylabel}} },
-            })
-        return_arg.append(s_right_plots)
+            }
         for i in range(0, num_harms):
             xlabel=""
             ylabel=""
@@ -640,21 +697,47 @@ def apply_slider_changes(n_clicks, *inputs):
             else:
                 s_x_plot=SV_plot_voltages
                 s_y_plot=np.real(SV_harmonics[i,:])
-            return_arg.append({"data": [
-                {"x":s_x_plot, "y": s_y_plot, "type": "line", "name": "sv_harm"+str(i), "render_mode":"webgl"},
+            harmonics_dict["sinusoidal"]["sinusoidal_harm_"+str(i)]=({"data": [
+                {"x":s_x_plot, "y": s_y_plot, "type": "line", "name": None, "render_mode":"webgl"},
             ],
             "layout": {"height":plot_height//num_harms, "margin":{"pad":0, "b":b, "t":5},"xaxis":{"title":{"text":xlabel}}, "yaxis":{"title":{"text":ylabel}} },
             })
-        return_arg.append(d_right_plots)
-        return_arg.append(table_data)
-        return return_arg
+
+        return [r_right_plots]+[s_right_plots]+[d_right_plots]+[harmonics_dict]+[table_data]
 
     empty_r_plots=dict(zip(r_tab_labels, [{"layout": ramped_layout}]*len(r_tab_labels)))
     empty_s_plots=dict(zip(s_tab_labels, [{"layout": ramped_layout}]*len(s_tab_labels)))
     empty_d_plots=dict(zip(d_tab_labels, [{"layout": ramped_layout}]*len(d_tab_labels)))
-    return [empty_r_plots]+[{"layout": harmonic_layout}]*(num_harms)+[empty_s_plots]+[{"layout": harmonic_layout}]*(num_harms)+[empty_d_plots]+[table_data]
-
-
-
+    harmonics_dict={"ramped":{}, "sinusoidal":{}}
+    for i in range(0, num_harms):
+        harmonics_dict["ramped"]["ramped_harm_"+str(i)]={"layout":harmonic_layout}
+        harmonics_dict["sinusoidal"]["sinusoidal_harm_"+str(i)]={"layout":harmonic_layout}
+    return [empty_r_plots]+[empty_s_plots]+[empty_d_plots]+[harmonics_dict]+[table_data]
+harmonic_output=[Output('ramped_harm_'+str(x), 'figure') for x in range(start_harm, start_harm+num_harms)]+[Output('sinusoidal_harm_'+str(x), 'figure') for x in range(start_harm, start_harm+num_harms)]
+@app.callback(
+    harmonic_output,
+    [Input("harmonic_store", "data"), Input("history_store", "data"), Input("reset_plots", "n_clicks")]
+)
+def plot_harmonics(data, existing_data, reset_button):
+    if reset_button==0:
+        for label in ["ramped", "sinusoidal"]:
+            plot_keys=existing_data[label+"_harmonics"].keys()
+            #print(plot_keys, "plot_keys")
+            for key in plot_keys:
+                for i in range(0, num_harms):
+                    data[label][label+"_harm_"+str(i)]["data"].append(existing_data[label+"_harmonics"][key][label+"_harm_"+str(i)]["data"][0])
+                    #print(existing_data[label+"_harmonics"][key][label+"_harm_"+str(i)]["data"][0].keys())
+    harmonic_plots=[data["ramped"]["ramped_harm_"+str(i)] for i in range(0, num_harms)]+[data["sinusoidal"]["sinusoidal_harm_"+str(i)] for i in range(0, num_harms)]
+    return harmonic_plots
+"""if active_tab and data is not None:
+    past_plots=existing_data["sinusoidal_plots"].keys()
+    if len(past_plots)>0:
+        for key in past_plots:
+            existing_data["sinusoidal_plots"][key][active_tab]["data"][0]["name"]=key
+            data[active_tab]["data"].append(existing_data["sinusoidal_plots"][key][active_tab]["data"][0])
+        #data[active_tab]["data"]=apply_data
+        return dcc.Graph(figure=data[active_tab])
+    else:
+        return  dcc.Graph(figure=data[active_tab])#layout=dict(height=plot_height))"""
 if __name__ == '__main__':
     app.run_server(host='0.0.0.0', port=8050, debug=True)
