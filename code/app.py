@@ -729,15 +729,5 @@ def plot_harmonics(data, existing_data, reset_button):
                     #print(existing_data[label+"_harmonics"][key][label+"_harm_"+str(i)]["data"][0].keys())
     harmonic_plots=[data["ramped"]["ramped_harm_"+str(i)] for i in range(0, num_harms)]+[data["sinusoidal"]["sinusoidal_harm_"+str(i)] for i in range(0, num_harms)]
     return harmonic_plots
-"""if active_tab and data is not None:
-    past_plots=existing_data["sinusoidal_plots"].keys()
-    if len(past_plots)>0:
-        for key in past_plots:
-            existing_data["sinusoidal_plots"][key][active_tab]["data"][0]["name"]=key
-            data[active_tab]["data"].append(existing_data["sinusoidal_plots"][key][active_tab]["data"][0])
-        #data[active_tab]["data"]=apply_data
-        return dcc.Graph(figure=data[active_tab])
-    else:
-        return  dcc.Graph(figure=data[active_tab])#layout=dict(height=plot_height))"""
 if __name__ == '__main__':
-    app.run_server(host='0.0.0.0', port=8050, debug=True)
+    app.run_server(host='0.0.0.0', port=8050, debug=False)
