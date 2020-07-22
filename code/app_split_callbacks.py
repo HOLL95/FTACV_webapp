@@ -276,7 +276,7 @@ app.layout = dbc.Container(
                             so refer to the above bullet point.
                             * There are three options for ramped plotting. The default decimates the data, which causes sampling artefacts. "Better ramped plots" removes the decimation, and the experimental "Better ramped plots"
                             uses a range of algorithms to reduced the number of points, with the introduction of some distortion.
-                            * If timing out is becoming a serious issue, please refer to the [github](https://github.com/HOLL95/FTACV_webapp), and attempt to run the program locally.
+                            * If timing out is becoming a serious issue, please refer to the [github](https://github.com/HOLL95/FTACV_webapp), and attempt to run the program sessionly.
 
                             '''
                                      )
@@ -440,51 +440,6 @@ def show_hide_slider(drop_down_ids):
         return {"display":"block"}
     else:
         return {"display":"none"}
-@app.callback(
-    Output("param_table", "data"),
-    [Input('submit-button-state', 'n_clicks')],
-    [State("parameter_list", "value"),State("param_table", "data")]+[State(x+"_slider", "value") for x in table_names]
-)
-def update_current_table(n_clicks, drop_down_opts, current_table, *slider_params):
-    if n_clicks>0:
-        dispersion=False
-        dispersion_optim_list=[]
-        dispersion_groups={"E_0":["E0_mean", "E0_std"], "k_0":["k0_shape", "k0_scale"], "alpha":["alpha_mean", "alpha_std"]}
-        dispersion_associations={"E0_mean":"E_0", "E0_std":"E_0", "E0_skew":"E_0", "k0_shape":"k_0", "k0_scale":"k_0", "alpha_mean":"alpha", "alpha_std":"alpha"}
-        dispersed_params=list(set([dispersion_associations[key] for key in drop_down_opts if key in dispersion_associations.keys()]))
-        if len(dispersed_params)!=0:
-            dispersion=True
-            for key in dispersed_params:
-                dispersion_optim_list+=dispersion_groups[key]
-            in_table=dict(zip(dispersion_optim_list, [False]*len(dispersion_optim_list)))
-        deletion_idx=[]
-        for i in range(0, len(slider_params)):
-            if slider_params[i] is not None:
-                val=slider_params[i]
-                val=min(val, param_bounds[table_names[i]][1])
-                val=max(val, param_bounds[table_names[i]][0])
-                RV.dim_dict[RV.optim_list[i]]=val
-        if dispersion==False:
-            table_data=table_init
-        else:
-            table_data=current_table
-        for q in range(0, len(table_data)):
-            table_data[q]["Value"]=RV.dim_dict[table_data[q]["Parameter"]]
-            if dispersion==True:
-                if table_data[q]["Parameter"] in dispersion_optim_list:
-                    in_table[table_data[q]["Parameter"]]=True
-                if table_data[q]["Parameter"] in dispersed_params:
-                    deletion_idx.append(q)
-
-        if dispersion==True:
-            for q in range(0, len(dispersion_optim_list)):
-                if in_table[dispersion_optim_list[q]]==False:
-                    table_data.append({"Parameter":dispersion_optim_list[q], "Value":RV.dim_dict[dispersion_optim_list[q]]})
-            for q in range(0, len(deletion_idx)):
-                del table_data[deletion_idx[q]]
-        return table_data
-    else:
-        return current_table
 
 left_inputs={experiment:[Input(store_list[experiment][i], "data") for i in range(0, len(store_list[experiment])) if "harms" not in store_list[experiment][i]] for experiment in ["ramped", "sinusoidal", "dcv"]}
 left_history_states={experiment:[State(history_list[experiment][i], "data") for i in range(0, len(history_list[experiment])) if "harms" not in history_list[experiment][i]] for experiment in ["ramped", "sinusoidal", "dcv"]}
@@ -539,7 +494,6 @@ def apply_slider_changes(n_clicks, drop_down_opts, disp_bins, freeze_buttons, ad
             experiment_type=exp
             exp_class=class_dict[exp]
     if (n_clicks>0) and (experiment_type+"_freeze" in freeze_buttons):
-        dispersion_optim_list=[]
         if drop_down_opts is not None:
             dispersion_groups={"E_0":["E0_mean", "E0_std"], "k_0":["k0_shape", "k0_scale"], "alpha":["alpha_mean", "alpha_std"]}
             dispersion_associations={"E0_mean":"E_0", "E0_std":"E_0", "E0_skew":"E_0", "k0_shape":"k_0", "k0_scale":"k_0", "alpha_mean":"alpha", "alpha_std":"alpha"}
@@ -596,9 +550,8 @@ def apply_slider_changes(n_clicks, drop_down_opts, disp_bins, freeze_buttons, ad
                 experiment_harmonics=harms.generate_harmonics(plot_times, timeseries, hanning=False)
             one_tail_len=(len(harms.exposed_f)//2)+1
             freqs=harms.exposed_f[:one_tail_len]
-
+            fft=abs(harms.exposed_Y[:one_tail_len])
             if experiment_type=="ramped":
-                fft=abs(harms.exposed_Y[:one_tail_len])
                 if "no_decimation" in plot_buttons:
                     plot_list=[[plot_times, timeseries], [plot_voltages, timeseries], [plot_times[0::10], plot_voltages[0::10]], [freqs, fft]]
                 elif "ramped_rdp" in plot_buttons:
@@ -609,8 +562,7 @@ def apply_slider_changes(n_clicks, drop_down_opts, disp_bins, freeze_buttons, ad
                     plot_list=[[simped_times, simped_timeseries], [plot_voltages[0::10], timeseries[0::10]], [plot_times[0::10], plot_voltages[0::10]], [freqs, fft]]
                 elif "decimation" in plot_buttons:
                     plot_list=[[plot_times[0::10], timeseries[0::10]], [plot_voltages[0::10], timeseries[0::10]], [plot_times[0::10], plot_voltages[0::10]], [freqs[0::10], fft[0::10]]]
-            elif experiment_type=="sinusoidal":
-                fft=np.real(harms.exposed_Y[:one_tail_len])
+            else:
                 plot_list=[[plot_times, timeseries], [plot_voltages, timeseries], [plot_times, plot_voltages], [freqs, fft]]
         else:
             plot_list=[[plot_times[0::10], timeseries[0::10]], [plot_voltages[0::10], timeseries[0::10]], [plot_times[0::10], plot_voltages[0::10]]]
@@ -637,7 +589,7 @@ def apply_slider_changes(n_clicks, drop_down_opts, disp_bins, freeze_buttons, ad
                 if experiment_type=="ramped":
                     x_plot=plot_times
                     y_plot=np.abs(experiment_harmonics[i,:][0::10])
-                else:
+                elif experiment_type=="sinsuoidal":
                     x_plot=plot_voltages
                     y_plot=np.real(experiment_harmonics[i,:])
                 return_arg.append({"data": [
@@ -683,4 +635,4 @@ for experiment in ["ramped", "sinusoidal"]:
         )(plot_harmonics)
 
 if __name__ == '__main__':
-    app.run_server(host='0.0.0.0', port=8050, debug=False)
+    app.run_server(host='0.0.0.0', port=8050, debug=True)
