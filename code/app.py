@@ -99,7 +99,7 @@ DCV_simulation_options=copy.deepcopy(simulation_options)
 DCV_simulation_options["method"]="dcv"
 SV_param_list=copy.deepcopy(RV_param_list)
 changed_SV_params=["d_E", "phase", "cap_phase", "num_peaks", "original_omega", "sampling_freq"]
-changed_sv_vals=[300e-3, 3*math.pi/2,  3*math.pi/2, 30, RV_param_list["omega"], 1/500.0]
+changed_sv_vals=[300e-3, 3*math.pi/2,  3*math.pi/2, 20, RV_param_list["omega"], 1/1000.0]
 for key, value in zip(changed_SV_params, changed_sv_vals):
     SV_param_list[key]=value
 num_harms=7
