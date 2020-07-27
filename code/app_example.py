@@ -5,6 +5,8 @@ from dash.dependencies import Input, Output, State, MATCH, ALL
 import dash_core_components as dcc
 import dash_html_components as html
 import plotly.graph_objects as go
+from flask_caching.backends import FileSystemCache
+from dash_extensions.callback import CallbackCache, Trigger
 from single_e_class_unified import single_electron
 from harmonics_plotter import harmonics
 import numpy as np
@@ -131,6 +133,7 @@ harmonic_layout=go.Layout(height=plot_height//num_harms, margin={"pad":0, "b":0,
 app = dash.Dash(__name__, external_stylesheets=external_stylesheets)
 server=app.server
 app.title = "FTACVSIM"
+cc = CallbackCache(cache=FileSystemCache(cache_dir="cache"))
 parameter_names=RV_param_list.keys()
 parameter_sliders=[]
 forbidden_params=["v", "d_E"]
@@ -398,7 +401,7 @@ def show_hide_element(slider_name, drop_down_id):
     return {"display":"none"}, True
 for key in parameter_names:
     if key in param_bounds:
-        app.callback(
+        cc.callback(
            [Output(component_id=key+"_slider", component_property='style'),
            Output(component_id=key+"_slider_id", component_property='hidden')],
            [Input(component_id=key+"_slider", component_property='id'),
@@ -411,8 +414,8 @@ for experiment in ["ramped", "sinusoidal", "dcv"]:
     current_state+=[State(store_list[experiment][i], "data") for i in range(0, len(store_list[experiment]))]
     memory_state+=[State(history_list[experiment][i], "data") for i in range(0, len(store_list[experiment]))]
 num_states=len(storage_array)//2
-@app.callback(
-    memory_output+[Output("table_store", "data"), Output("reset_plots", "n_clicks")],
+@cc.callback(
+    memory_output+[Output("reset_plots", "n_clicks")],
     [Input("save_plot_state", "n_clicks")],
     [State("submit-button-state", "n_clicks"),State("reset_plots", "n_clicks")]+[State("freeze_buttons", "value")]+[State("table_store", "data")]+current_state+memory_state
 )
@@ -423,23 +426,6 @@ def move_data_to_hidden(save_click,apply_click,clear_click, freeze_buttons,table
         plot_number=str(save_click%max_plots)
         current_store=stores[:num_states]
         history_store=stores[num_states:]
-        r_len=len(store_list["ramped"])
-        s_r_len=r_len+len(store_list["sinusoidal"])
-        current_table_stores=dict(zip(["ramped", "sinusoidal", "dcv"], [stores[0], stores[r_len], stores[s_r_len]]))
-        table_experiments=[]
-        for key in ["ramped", "sinusoidal", "dcv"]:
-            if "parameters" in current_table_stores[key]:
-                param_dict=current_table_stores[key]["parameters"]
-                table_experiments.append(key)
-        if len(table_experiments)==3:
-            table_label="Saved sim "
-        else:
-            table_label_dict=dict(zip(["ramped", "sinusoidal", "dcv"], ["RV", "SV", "DCV"]))
-            table_label=("+").join([table_label_dict[experiment] for experiment in table_experiments])+" sim "
-        table_label+=plot_number
-        if table_store is None:
-            table_store={}
-        table_store[table_label]=param_dict
         for i in range(0, num_states):
             if "figure_object" in current_store[i]:
                 if "data" in current_store[i]["figure_object"]:
@@ -452,7 +438,7 @@ def move_data_to_hidden(save_click,apply_click,clear_click, freeze_buttons,table
                 history_store[i][plot_number]["data"]=current_store[i]["data"]
         return [*history_store,table_store, 0]
     return [*[{}]*num_states,table_store, 0]
-@app.callback(
+@cc.callback(
     Output("slider_group", "style"),
     [Input("parameter_list", "value")]
 )
@@ -468,70 +454,10 @@ def show_hide_slider(drop_down_ids):
         return {"display":"block"}
     else:
         return {"display":"none"}
-@app.callback(
-    Output("param_table", "data"),
-    [Input('submit-button-state', 'n_clicks'), Input("save_plot_state", "n_clicks"), Input("table_store", "data"), Input("reset_plots", "n_clicks")],
-    [State("parameter_list", "value"),State("param_table", "data")]+[State(x+"_slider", "value") for x in table_names]
-)
-def update_current_table(n_clicks, save_click, table_store, reset, drop_down_opts, current_table,*slider_params):
-    if n_clicks>0 and drop_down_opts is not None:
-        if reset>0:
-            return [table_init]
-        dispersion=False
-        dispersion_optim_list=[]
-        dispersion_groups={"E_0":["E0_mean", "E0_std", "E0_skew"], "k_0":["k0_shape", "k0_scale"], "alpha":["alpha_mean", "alpha_std"]}
-        dispersion_associations={"E0_mean":"E_0", "E0_std":"E_0", "E0_skew":"E_0", "k0_shape":"k_0", "k0_scale":"k_0", "alpha_mean":"alpha", "alpha_std":"alpha"}
-        dispersed_params=list(set([dispersion_associations[key] for key in drop_down_opts if key in dispersion_associations.keys()]))
-        if len(dispersed_params)!=0:
-            dispersion=True
-            for key in dispersed_params:
-                dispersion_optim_list+=dispersion_groups[key]
-        for i in range(0, len(slider_params)):
-            if slider_params[i] is not None:
-                val=slider_params[i]
-                val=min(val, param_bounds[table_names[i]][1])
-                val=max(val, param_bounds[table_names[i]][0])
-                RV.dim_dict[RV.optim_list[i]]=val
 
-        table_data=current_table
-        if type(table_data) is list:
-            table_data=table_data[0]
-
-        table_keys=table_data.keys()
-        for key in table_keys:
-            if key in RV.dim_dict:
-                table_data[key]=RV.dim_dict[key]
-        for disp in disped_params:
-            if dispersion==False:
-                table_data[disp]="*"
-            elif dispersion==True and disp not in dispersion_optim_list:
-                table_data[disp]="*"
-        if dispersion==True:
-            for param in dispersed_params:
-                table_data[param]="*"
-        table_data=[table_data]
-        if table_store is not None:
-            for key in table_store.keys():
-                print("table store", table_store[key])
-                row={param:table_store[key]["param_list"][param] for param in table_store[key]["param_list"].keys()}
-                row["Simulation"]=key
-                for disp in disped_params:
-                    if dispersion==False:
-                        row[disp]="*"
-                    elif dispersion==True and disp not in table_store[key]["disped_params"]:
-                        row[disp]="*"
-                if dispersion==True:
-                    dispersed_params=list(set([dispersion_associations[key] for key in table_store[key]["disped_params"] if key in dispersion_associations.keys()]))
-                    for param in dispersed_params:
-                        row[param]="*"
-                table_data.append(row)
-        return table_data
-    else:
-        return current_table
 
 left_inputs={experiment:[Input(store_list[experiment][i], "data") for i in range(0, len(store_list[experiment])) if "harms" not in store_list[experiment][i]] for experiment in ["ramped", "sinusoidal", "dcv"]}
 left_history_states={experiment:[State(history_list[experiment][i], "data") for i in range(0, len(history_list[experiment])) if "harms" not in history_list[experiment][i]] for experiment in ["ramped", "sinusoidal", "dcv"]}
-
 def tab_renderer(active_tab, reset_button, *args):
     if active_tab is not None and args[0] is not None:
         exp_id=args[-1]
@@ -539,19 +465,6 @@ def tab_renderer(active_tab, reset_button, *args):
             if exp in exp_id:
                 experiment_type=exp
                 break
-        exp_dict=dict(zip(["ramped", "sinusoidal", "dcv"], ["RV", "SV", "DCV"]))
-        tab_entries=tab_names[experiment_type]
-        stores=args[:(len(tab_names[experiment_type]))]
-        histories=args[len(tab_names[experiment_type]):-1]
-        tab_dict=dict(zip(tab_entries, stores))
-        history_tab_dict=dict(zip(tab_entries, histories))
-        history_keys=history_tab_dict[active_tab].keys()
-        if len(history_keys)>0 and reset_button==0:
-            if "data" not in tab_dict[active_tab]["figure_object"]:
-                tab_dict[active_tab]["figure_object"]["data"]=[]
-            for key in history_keys:
-                history_tab_dict[active_tab][key]["figure_object"]["data"][0]["name"]=exp_dict[experiment_type]+" Sim" + str(key)
-                tab_dict[active_tab]["figure_object"]["data"].append(history_tab_dict[active_tab][key]["figure_object"]["data"][0])
             return dcc.Graph(figure=tab_dict[active_tab]["figure_object"])
         else:
             return dcc.Graph(figure=tab_dict[active_tab]["figure_object"])
@@ -559,7 +472,7 @@ def tab_renderer(active_tab, reset_button, *args):
 
 
 for experiment in ["ramped", "sinusoidal", "dcv"]:
-    app.callback(
+    cc.callback(
         Output(experiment+"-tab-content", "children"),
         [Input(experiment+"_tabs", "active_tab")]+[Input("reset_plots", "n_clicks")]+left_inputs[experiment],
         left_history_states[experiment]+
@@ -567,7 +480,7 @@ for experiment in ["ramped", "sinusoidal", "dcv"]:
 
 
 
-@app.callback(
+@cc.callback(
     [Output(x+"_slider", "value") for x in table_names],
     [Input('reset_params', 'n_clicks')]
 )
@@ -579,117 +492,29 @@ def reset_parameters(button_click):
 xlabels=["Time(s)", "Voltage(V)", "Time(s)", "Frequency(Hz)"]
 ylabels=["Current(A)", "Current(A)", "Voltage(V)", "Magnitude"]
 labels={"ramped":{"x":xlabels, "y":ylabels}, "sinusoidal":{"x":xlabels, "y":ylabels}, "dcv":{"x":xlabels[:-1], "y":ylabels[:-1]}}
-def apply_slider_changes(n_clicks, drop_down_opts, disp_bins, freeze_buttons, adaptive_buttons, plot_buttons, exp_id, *slider_params):
+def apply_slider_changes(n_clicks, exp_id):
     for exp in ["ramped", "sinusoidal", "dcv"]:
         if exp in exp_id:
             experiment_type=exp
             exp_class=class_dict[exp]
-    if (n_clicks>0) and (experiment_type+"_freeze" in freeze_buttons):
-        dispersion_optim_list=[]
-        if drop_down_opts is not None:
-            dispersion_groups={"E_0":["E0_mean", "E0_std", "E0_skew"], "k_0":["k0_shape", "k0_scale"], "alpha":["alpha_mean", "alpha_std"]}
-            dispersion_associations={"E0_mean":"E_0", "E0_std":"E_0", "E0_skew":"E_0", "k0_shape":"k_0", "k0_scale":"k_0", "alpha_mean":"alpha", "alpha_std":"alpha"}
-            dispersed_params=list(set([dispersion_associations[key] for key in drop_down_opts if key in dispersion_associations.keys()]))
-            if len(dispersed_params)!=0:
-                dispersion=True
-                for key in dispersed_params:
-                    dispersion_optim_list+=dispersion_groups[key]
-            else:
-                dispersion=False
-                params=[]
-        else:
-            dispersion=False
-            params=[]
-        for i in range(0, len(slider_params)):
-            if slider_params[i] is not None:
-                val=slider_params[i]
-                val=min(val, param_bounds[table_names[i]][1])
-                val=max(val, param_bounds[table_names[i]][0])
-                exp_class.dim_dict[RV.optim_list[i]]=val
-        exp_class.dim_dict["original_gamma"]=exp_class.dim_dict["gamma"]
-        exp_class.simulation_options["optim_list"]=[]
-        if experiment_type=="sinusoidal":
-            exp_class.dim_dict["original_omega"]=exp_class.dim_dict["omega"]
-            exp_class.simulation_options["no_transient"]=2/exp_class.dim_dict["omega"]
-            exp_class.dim_dict["d_E"]=(exp_class.dim_dict["E_reverse"]-exp_class.dim_dict["E_start"])/2
-        elif experiment_type=="ramped":
-            exp_class.simulation_options["no_transient"]=2/exp_class.dim_dict["omega"]
-            exp_class.dim_dict["d_E"]=(exp_class.dim_dict["E_reverse"]-RV.dim_dict["E_start"])/4
-        elif experiment_type=="dcv":
-            exp_class.simulation_options["no_transient"]=False
-        new_class=single_electron(None, exp_class.dim_dict, exp_class.simulation_options, exp_class.other_values, param_bounds)
-        if dispersion==True:
-            new_class.simulation_options["dispersion_bins"]=[disp_bins]
-            new_class.def_optim_list(dispersion_optim_list)
-            params=[new_class.dim_dict[param] for param in dispersion_optim_list]
-        if experiment_type+"_scipy" in adaptive_buttons and dispersion==False:
-            new_class.update_params(params)
-            V=new_class.e_nondim(new_class.define_voltages())
-            w0=[0, 0, V[0]]
-            wsol = odeint(new_class.current_ode_sys, w0, new_class.time_vec, rtol=1e-6, atol=1e-6)
-            timeseries=new_class.i_nondim(wsol[:,0][new_class.time_idx])
-            plot_voltages=V[new_class.time_idx]
-            plot_times=new_class.t_nondim(new_class.time_vec[new_class.time_idx])
-        else:
-            timeseries=new_class.i_nondim(new_class.test_vals(params, "timeseries"))
-            plot_times=new_class.t_nondim(new_class.time_vec[new_class.time_idx])
-            plot_voltages=new_class.e_nondim(new_class.define_voltages()[new_class.time_idx])
-        if experiment_type!="dcv":
-            harms=harmonics(list(range(start_harm, start_harm+num_harms)), new_class.dim_dict["omega"], 0.05)
-            if experiment_type=="ramped":
-                experiment_harmonics=harms.generate_harmonics(plot_times, timeseries, hanning=True)
-            elif experiment_type=="sinusoidal":
-                experiment_harmonics=harms.generate_harmonics(plot_times, timeseries, hanning=False)
-            one_tail_len=(len(harms.exposed_f)//2)+1
-            freqs=harms.exposed_f[:one_tail_len]
-
-            if experiment_type=="ramped":
-                fft=abs(harms.exposed_Y[:one_tail_len])
-                if "no_decimation" in plot_buttons:
-                    plot_list=[[plot_times, timeseries], [plot_voltages, timeseries], [plot_times[0::10], plot_voltages[0::10]], [freqs, fft]]
-                elif "ramped_rdp" in plot_buttons:
-                    simped_line=np.array(rdp_lines.rdp_controller(plot_times, timeseries, max(timeseries)/5))
-                    sorted_idx=np.argsort(simped_line[:,0])
-                    simped_times=simped_line[:,0][sorted_idx]
-                    simped_timeseries=simped_line[:,1][sorted_idx]
-                    plot_list=[[simped_times, simped_timeseries], [plot_voltages[0::10], timeseries[0::10]], [plot_times[0::10], plot_voltages[0::10]], [freqs, fft]]
-                elif "decimation" in plot_buttons:
-                    plot_list=[[plot_times[0::10], timeseries[0::10]], [plot_voltages[0::10], timeseries[0::10]], [plot_times[0::10], plot_voltages[0::10]], [freqs[0::10], fft[0::10]]]
-            elif experiment_type=="sinusoidal":
-                fft=np.real(harms.exposed_Y[:one_tail_len])
-                plot_list=[[plot_times, timeseries], [plot_voltages, timeseries], [plot_times, plot_voltages], [freqs, fft]]
-        else:
-            plot_list=[[plot_times[0::10], timeseries[0::10]], [plot_voltages[0::10], timeseries[0::10]], [plot_times[0::10], plot_voltages[0::10]]]
-
+    if n_clicks>0:
+        # slow process goes here
+        plot_1=np.arange(0, 1e5)
+        plot_2=np.arange(0, 1e5)
+        plot_list=[[plot_1, plot_2]]*len(labels[experiment_type])
         non_harm_plots=[{"figure_object":{"data": [
                         {"x":plot_list[i][0], "y":plot_list[i][1] , "type": "scattergl", "name":"Current sim", "render_mode":"webgl"}
                         ],
                         "layout":
-                        {"height":plot_height, "xaxis":{"title":{"text":labels[experiment_type]["x"][i]}}, "yaxis":{"title":{"text":labels[experiment_type]["y"][i]}}}
-                        ,},"parameters":{"param_list":dict(zip(RV.optim_list, slider_params)),"disped_params":dispersion_optim_list, "experiment":experiment_type}} for i in range(0, len(plot_list))]
+                        {"height":plot_height,}
+                        }} for i in range(0, len(plot_list))]
         return_arg=non_harm_plots
         if experiment_type!="dcv":
             for i in range(0, num_harms):
-                xlabel=""
-                ylabel=""
-                b=0
-                if i==(num_harms-1):
-                    xlabel="Time(s)"
-                    b=30
-                if i==num_harms//2:
-                    ylabel="Current(A)"
-
-
-                if experiment_type=="ramped":
-                    x_plot=plot_times
-                    y_plot=np.abs(experiment_harmonics[i,:][0::10])
-                else:
-                    x_plot=plot_voltages
-                    y_plot=np.real(experiment_harmonics[i,:])
                 return_arg.append({"data": [
-                    {"x":x_plot, "y":y_plot , "type": "line", "name": "Current sim", "render_mode":"webgl"},
+                    {"x":plot_1, "y":plot_2, "type": "line", "name": "Current sim", "render_mode":"webgl"},
                 ],
-                "layout": {"height":plot_height//num_harms, "margin":{"pad":0, "b":b, "t":5},"xaxis":{"title":{"text":xlabel}}, "yaxis":{"title":{"text":ylabel}} },
+                "layout": {"height":plot_height//num_harms, "margin":{"pad":0, "b":b, "t":5}},
                 })
         return return_arg
     else:
@@ -700,14 +525,8 @@ def apply_slider_changes(n_clicks, drop_down_opts, disp_bins, freeze_buttons, ad
 for experiment in ["ramped", "sinusoidal", "dcv"]:
     output=[Output(store_list[experiment][i], "data") for i in range(0, len(store_list[experiment]))]
     input=[Input('submit-button-state', 'n_clicks')]
-    state=[State(component_id="parameter_list", component_property="value")]+\
-    [State("dispersion_slider", "value")]+\
-    [State("freeze_buttons", "value")]+\
-    [State("adaptive_buttons", "value")]+\
-    [State("plot_buttons", "value")]+\
-    [State(store_list[experiment][0], "id")]+\
-    [State(x+"_slider", "value") for x in table_names]
-    app.callback(output,input,state)(apply_slider_changes)
+    state=[State(store_list[experiment][0], "id")]
+    cc.cached_callback(output,input,state)(apply_slider_changes)
 
 
 
@@ -717,23 +536,18 @@ def plot_harmonics(current_harm_store, reset_button, history_harm_store, exp_id)
             if exp in exp_id:
                 experiment_type=exp
                 break
-        exp_dict=dict(zip(["ramped", "sinusoidal", "dcv"], ["RV", "SV", "DCV"]))
-        num_plots=history_harm_store.keys()
-        if "data" not in current_harm_store:
-            current_harm_store["data"]=[]
-        for key in num_plots:
-            history_harm_store[key]["data"][0]["name"]=exp_dict[experiment_type]+" Sim" + str(key)
-            current_harm_store["data"].append(history_harm_store[key]["data"][0])
+        print(current_harm_store)
     if current_harm_store is None:
         current_harm_store={"data":[],"layout":harmonic_layout}
     return current_harm_store
 for experiment in ["ramped", "sinusoidal"]:
     for i in range(0, num_harms):
-        app.callback(
+        cc.callback(
             Output(experiment+"_harm_"+str(i), "figure"),
             [Input(experiment+"_harms_"+str(i)+"_store", "data"),Input("reset_plots", "n_clicks")],
             [State(experiment+"_harms_"+str(i)+"_store_history", "data"), State(experiment+"_harms_"+str(i)+"_store_history", "id")]
         )(plot_harmonics)
 
+cc.register(app)
 if __name__ == '__main__':
     app.run_server(host='0.0.0.0', port=8050, debug=True)

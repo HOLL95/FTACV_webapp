@@ -99,7 +99,7 @@ DCV_simulation_options=copy.deepcopy(simulation_options)
 DCV_simulation_options["method"]="dcv"
 SV_param_list=copy.deepcopy(RV_param_list)
 changed_SV_params=["d_E", "phase", "cap_phase", "num_peaks", "original_omega", "sampling_freq"]
-changed_sv_vals=[300e-3, 3*math.pi/2,  3*math.pi/2, 25, RV_param_list["omega"], 1/1000.0]
+changed_sv_vals=[300e-3, 3*math.pi/2,  3*math.pi/2, 20, RV_param_list["omega"], 1/1000.0]
 for key, value in zip(changed_SV_params, changed_sv_vals):
     SV_param_list[key]=value
 num_harms=7
@@ -267,40 +267,9 @@ app.layout = dbc.Container(
             ],
             fluid=True,
             className="jumbotron bg-white text-dark"
-        ),dcc.Store(id="table_store"),
-        (dbc.Col([
-            dbc.FormGroup(
-                [
-                    dbc.ListGroup([dbc.ListGroupItemHeading('Parameter values'),
-                    dash_table.DataTable(
-                        id='param_table',
-                        css=[{'selector': '.row', 'rule': 'margin: 0'}],
-                        columns=[
-                            {"name": "Simulation", "id": "Simulation"},
-                            *[{"name": key, "id": key} for key in table_dict.keys()]
-                        ],
-                        data=[table_init],
-                        style_cell_conditional=[
-
-                            *[{'if': {'column_id': 'key'},'width': '10px'} for key in table_dict.keys()],
-                        ],
-                        style_cell={'textAlign': 'left',
-                                    'fontSize': 14, 'font-family': 'Helvetica'},
-                        style_header={
-                            'backgroundColor': 'white',
-                            'fontWeight': 'bold',
-                            'fontSize': 14,
-                        },
-                        style_table={
-                                'overflowX': 'scroll',
-                        },
-
-                    ),
-                ]
-            ),])
-        ])),
+        ),
         dbc.Row([
-        dbc.Col(dbc.ListGroup([dbc.ListGroupItemHeading("Ramped plot options"),dcc.RadioItems(
+        dbc.Col(dbc.ListGroup([dbc.ListGroupItemHeading("ramped plot options"),dcc.RadioItems(
             options=[
                 {"label":"Decimated ramped plots", "value":"decimation"},
                 {'label': 'Better ramped plots (slow tab switching)', 'value': 'no_decimation'},
@@ -311,7 +280,7 @@ app.layout = dbc.Container(
         )])) ,
         dbc.Col(dbc.ListGroup([dbc.ListGroupItemHeading("Simulation experiments"),dcc.Checklist(
             options=[
-                {'label': 'Ramped', 'value': 'ramped_freeze'},
+                {'label': 'ramped', 'value': 'ramped_freeze'},
                 {'label': 'Sinusoidal', 'value': 'sinusoidal_freeze'},
                 {'label': 'DC', 'value': 'dcv_freeze'}
             ],
@@ -321,7 +290,7 @@ app.layout = dbc.Container(
         dbc.Col(dbc.ListGroup([dbc.ListGroupItemHeading("Adaptive simulation"),
         dcc.Checklist(
             options=[
-                {'label': 'Ramped', 'value': 'ramped_scipy'},
+                {'label': 'ramped', 'value': 'ramped_scipy'},
                 {'label': 'Sinusoidal', 'value': 'sinusoidal_scipy'},
                 {'label': 'DC', 'value': 'dcv_scipy'}
             ],
