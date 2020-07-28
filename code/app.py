@@ -209,28 +209,28 @@ for e_type in ["ramped", "sinusoidal", "dcv"]:
                         id_str=("_").join([e_type, exp, str(i), "store"])+history
                         if history=="":
                             store_list[e_type].append(id_str)
-                            storage_array.append(dcc.Store(id=id_str))
+                            storage_array.append(dcc.Loading(dcc.Store(id=id_str), ))
                         else:
                             history_list[e_type].append(id_str)
-                            storage_array.append(dcc.Store(id=id_str, data=history_dict))
+                            storage_array.append(dcc.Loading(dcc.Store(id=id_str), ))
                 else:
                     id_str=("_").join([e_type, exp,"store"])+history
                     if history=="":
                         store_list[e_type].append(id_str)
-                        storage_array.append(dcc.Store(id=id_str))
+                        storage_array.append(dcc.Loading(dcc.Store(id=id_str), ))
                     else:
                         history_list[e_type].append(id_str)
-                        storage_array.append(dcc.Store(id=id_str, data=history_dict))
+                        storage_array.append(dcc.Loading(dcc.Store(id=id_str), ))
 
             elif e_type=="dcv":
                 if exp not in ["fft", "harms"]:
                     id_str=("_").join([e_type, exp,"store"])+history
                     if history=="":
                         store_list[e_type].append(id_str)
-                        storage_array.append(dcc.Store(id=id_str))
+                        storage_array.append(dcc.Loading(dcc.Store(id=id_str), ))
                     else:
                         history_list[e_type].append(id_str)
-                        storage_array.append(dcc.Store(id=id_str, data=history_dict))
+                        storage_array.append(dcc.Loading(dcc.Store(id=id_str), ))
 table_init={key:table_dict[key] for key in table_dict.keys() if key not in disped_params}
 table_init["Simulation"]="Current sim"
 for disp in disped_params:
@@ -268,6 +268,7 @@ app.layout = dbc.Container(
             fluid=True,
             className="jumbotron bg-white text-dark"
         ),dcc.Store(id="table_store"),
+        dbc.Col(storage_array),
         (dbc.Col([
             dbc.FormGroup(
                 [
@@ -328,7 +329,7 @@ app.layout = dbc.Container(
             value=[],
             id="adaptive_buttons",
         )])) ,]),
-        dbc.Row(storage_array),
+
         dbc.Row(
                 [
                 # here we place the controls we just defined,
