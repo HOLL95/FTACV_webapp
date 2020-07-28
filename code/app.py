@@ -419,7 +419,7 @@ num_states=len(storage_array)//2
 )
 def move_data_to_hidden(save_click,apply_click,clear_click, freeze_buttons,table_store, *stores):
     if clear_click>0:
-        return [*[{}]*num_states,0]
+        return [*[{}]*num_states,table_store ,0]
     if save_click>0 and apply_click>0:
         plot_number=str(save_click%max_plots)
         current_store=stores[:num_states]
