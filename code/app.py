@@ -310,6 +310,14 @@ app.layout = dbc.Container(
             value="decimation",
             id="plot_buttons",
         )])) ,
+        dbc.Col(dbc.ListGroup([dbc.ListGroupItemHeading("Ramped harmonic options"),dcc.RadioItems(
+            options=[
+                {"label":"Absolute", "value":"ramped_abs"},
+                {'label': 'Real', 'value': 'ramped_real'},
+            ],
+            value="ramped_abs",
+            id="ramped_harm_plot_button",
+        )])),
         dbc.Col(dbc.ListGroup([dbc.ListGroupItemHeading("Simulation experiments"),dcc.Checklist(
             options=[
                 {'label': 'Ramped', 'value': 'ramped_freeze'},
@@ -513,7 +521,6 @@ def update_current_table(n_clicks, save_click, table_store, reset, drop_down_opt
         table_data=[table_data]
         if table_store is not None:
             for key in table_store.keys():
-                print("table store", table_store[key])
                 row={param:table_store[key]["param_list"][param] for param in table_store[key]["param_list"].keys()}
                 row["Simulation"]=key
                 for disp in disped_params:
@@ -580,7 +587,7 @@ def reset_parameters(button_click):
 xlabels=["Time(s)", "Voltage(V)", "Time(s)", "Frequency(Hz)"]
 ylabels=["Current(A)", "Current(A)", "Voltage(V)", "Magnitude"]
 labels={"ramped":{"x":xlabels, "y":ylabels}, "sinusoidal":{"x":xlabels, "y":ylabels}, "dcv":{"x":xlabels[:-1], "y":ylabels[:-1]}}
-def apply_slider_changes(n_clicks, drop_down_opts, disp_bins, freeze_buttons, adaptive_buttons, plot_buttons, exp_id, *slider_params):
+def apply_slider_changes(n_clicks, drop_down_opts, disp_bins, freeze_buttons, adaptive_buttons, plot_buttons, ramped_abs_plot, exp_id, *slider_params):
     for exp in ["ramped", "sinusoidal", "dcv"]:
         if exp in exp_id:
             experiment_type=exp
@@ -682,8 +689,12 @@ def apply_slider_changes(n_clicks, drop_down_opts, disp_bins, freeze_buttons, ad
 
 
                 if experiment_type=="ramped":
+                    if ramped_abs_plot=="ramped_abs":
+                        y_plot=np.abs(experiment_harmonics[i,:][0::10])
+                    else:
+                        y_plot=np.real(experiment_harmonics[i,:][0::10])
                     x_plot=plot_times
-                    y_plot=np.abs(experiment_harmonics[i,:][0::10])
+
                 else:
                     x_plot=plot_voltages
                     y_plot=np.real(experiment_harmonics[i,:])
@@ -706,6 +717,7 @@ for experiment in ["ramped", "sinusoidal", "dcv"]:
     [State("freeze_buttons", "value")]+\
     [State("adaptive_buttons", "value")]+\
     [State("plot_buttons", "value")]+\
+    [State("ramped_harm_plot_button", "value")]+\
     [State(store_list[experiment][0], "id")]+\
     [State(x+"_slider", "value") for x in table_names]
     app.callback(output,input,state)(apply_slider_changes)
@@ -725,6 +737,7 @@ def plot_harmonics(current_harm_store, reset_button, history_harm_store, exp_id)
         for key in num_plots:
             history_harm_store[key]["data"][0]["name"]=exp_dict[experiment_type]+" Sim" + str(key)
             current_harm_store["data"].append(history_harm_store[key]["data"][0])
+
     if current_harm_store is None:
         current_harm_store={"data":[],"layout":harmonic_layout}
     return current_harm_store
