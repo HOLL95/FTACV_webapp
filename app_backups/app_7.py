@@ -99,7 +99,7 @@ DCV_simulation_options=copy.deepcopy(simulation_options)
 DCV_simulation_options["method"]="dcv"
 SV_param_list=copy.deepcopy(RV_param_list)
 changed_SV_params=["d_E", "phase", "cap_phase", "num_peaks", "original_omega", "sampling_freq"]
-changed_sv_vals=[300e-3, 3*math.pi/2,  3*math.pi/2, 25, RV_param_list["omega"], 1/1000.0]
+changed_sv_vals=[300e-3, 3*math.pi/2,  3*math.pi/2, 20, RV_param_list["omega"], 1/1000.0]
 for key, value in zip(changed_SV_params, changed_sv_vals):
     SV_param_list[key]=value
 num_harms=7
@@ -209,28 +209,28 @@ for e_type in ["ramped", "sinusoidal", "dcv"]:
                         id_str=("_").join([e_type, exp, str(i), "store"])+history
                         if history=="":
                             store_list[e_type].append(id_str)
-                            storage_array.append(dcc.Loading(dcc.Store(id=id_str), ))
+                            storage_array.append(dcc.Store(id=id_str))
                         else:
                             history_list[e_type].append(id_str)
-                            storage_array.append(dcc.Loading(dcc.Store(id=id_str), ))
+                            storage_array.append(dcc.Store(id=id_str, data=history_dict))
                 else:
                     id_str=("_").join([e_type, exp,"store"])+history
                     if history=="":
                         store_list[e_type].append(id_str)
-                        storage_array.append(dcc.Loading(dcc.Store(id=id_str), ))
+                        storage_array.append(dcc.Store(id=id_str))
                     else:
                         history_list[e_type].append(id_str)
-                        storage_array.append(dcc.Loading(dcc.Store(id=id_str), ))
+                        storage_array.append(dcc.Store(id=id_str, data=history_dict))
 
             elif e_type=="dcv":
                 if exp not in ["fft", "harms"]:
                     id_str=("_").join([e_type, exp,"store"])+history
                     if history=="":
                         store_list[e_type].append(id_str)
-                        storage_array.append(dcc.Loading(dcc.Store(id=id_str), ))
+                        storage_array.append(dcc.Store(id=id_str))
                     else:
                         history_list[e_type].append(id_str)
-                        storage_array.append(dcc.Loading(dcc.Store(id=id_str), ))
+                        storage_array.append(dcc.Store(id=id_str, data=history_dict))
 table_init={key:table_dict[key] for key in table_dict.keys() if key not in disped_params}
 table_init["Simulation"]="Current sim"
 for disp in disped_params:
@@ -267,41 +267,9 @@ app.layout = dbc.Container(
             ],
             fluid=True,
             className="jumbotron bg-white text-dark"
-        ),dcc.Store(id="table_store"),
-        dbc.Col(storage_array),
-        (dbc.Col([
-            dbc.FormGroup(
-                [
-                    dbc.ListGroup([dbc.ListGroupItemHeading('Parameter values'),
-                    dash_table.DataTable(
-                        id='param_table',
-                        css=[{'selector': '.row', 'rule': 'margin: 0'}],
-                        columns=[
-                            {"name": "Simulation", "id": "Simulation"},
-                            *[{"name": key, "id": key} for key in table_dict.keys()]
-                        ],
-                        data=[table_init],
-                        style_cell_conditional=[
-
-                            *[{'if': {'column_id': 'key'},'width': '10px'} for key in table_dict.keys()],
-                        ],
-                        style_cell={'textAlign': 'left',
-                                    'fontSize': 14, 'font-family': 'Helvetica'},
-                        style_header={
-                            'backgroundColor': 'white',
-                            'fontWeight': 'bold',
-                            'fontSize': 14,
-                        },
-                        style_table={
-                                'overflowX': 'scroll',
-                        },
-
-                    ),
-                ]
-            ),])
-        ])),
+        ),
         dbc.Row([
-        dbc.Col(dbc.ListGroup([dbc.ListGroupItemHeading("Ramped plot options"),dcc.RadioItems(
+        dbc.Col(dbc.ListGroup([dbc.ListGroupItemHeading("ramped plot options"),dcc.RadioItems(
             options=[
                 {"label":"Decimated ramped plots", "value":"decimation"},
                 {'label': 'Better ramped plots (slow tab switching)', 'value': 'no_decimation'},
@@ -312,7 +280,7 @@ app.layout = dbc.Container(
         )])) ,
         dbc.Col(dbc.ListGroup([dbc.ListGroupItemHeading("Simulation experiments"),dcc.Checklist(
             options=[
-                {'label': 'Ramped', 'value': 'ramped_freeze'},
+                {'label': 'ramped', 'value': 'ramped_freeze'},
                 {'label': 'Sinusoidal', 'value': 'sinusoidal_freeze'},
                 {'label': 'DC', 'value': 'dcv_freeze'}
             ],
@@ -322,14 +290,14 @@ app.layout = dbc.Container(
         dbc.Col(dbc.ListGroup([dbc.ListGroupItemHeading("Adaptive simulation"),
         dcc.Checklist(
             options=[
-                {'label': 'Ramped', 'value': 'ramped_scipy'},
+                {'label': 'ramped', 'value': 'ramped_scipy'},
                 {'label': 'Sinusoidal', 'value': 'sinusoidal_scipy'},
                 {'label': 'DC', 'value': 'dcv_scipy'}
             ],
             value=[],
             id="adaptive_buttons",
         )])) ,]),
-
+        dbc.Row(storage_array),
         dbc.Row(
                 [
                 # here we place the controls we just defined,
@@ -419,7 +387,7 @@ num_states=len(storage_array)//2
 )
 def move_data_to_hidden(save_click,apply_click,clear_click, freeze_buttons,table_store, *stores):
     if clear_click>0:
-        return [*[{}]*num_states,table_store ,0]
+        return [*[{}]*num_states,0]
     if save_click>0 and apply_click>0:
         plot_number=str(save_click%max_plots)
         current_store=stores[:num_states]
@@ -620,7 +588,7 @@ def apply_slider_changes(n_clicks, drop_down_opts, disp_bins, freeze_buttons, ad
             exp_class.simulation_options["no_transient"]=False
         new_class=single_electron(None, exp_class.dim_dict, exp_class.simulation_options, exp_class.other_values, param_bounds)
         if dispersion==True:
-            new_class.simulation_options["dispersion_bins"]=[disp_bins]*len(dispersed_params)
+            new_class.simulation_options["dispersion_bins"]=[disp_bins]
             new_class.def_optim_list(dispersion_optim_list)
             params=[new_class.dim_dict[param] for param in dispersion_optim_list]
         if experiment_type+"_scipy" in adaptive_buttons and dispersion==False:
@@ -737,4 +705,4 @@ for experiment in ["ramped", "sinusoidal"]:
         )(plot_harmonics)
 
 if __name__ == '__main__':
-    app.run_server(host='0.0.0.0', port=8050, debug=False)
+    app.run_server(host='0.0.0.0', port=8050, debug=True)

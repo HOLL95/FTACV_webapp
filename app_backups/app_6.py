@@ -63,7 +63,6 @@ param_bounds={
     'gamma': [1e-4*RV_param_list["original_gamma"],1e4*RV_param_list["original_gamma"]],
     'k_0': [0.1, 1e6], #(reaction rate s-1)
     'alpha': [0.4, 0.6],
-    'phase' : [0, 2*math.pi],
     "cap_phase":[0, 2*math.pi],
     "E0_mean":[-2,4],
     "E0_std": [1e-4,  1],
@@ -72,7 +71,7 @@ param_bounds={
     "alpha_std":[1e-3, 0.3],
     "k0_shape":[0,1],
     "k0_scale":[0,1e4],
-
+    'phase' : [0, 2*math.pi],
 }
 time_start=2/(RV_param_list["omega"])
 simulation_options={
@@ -92,7 +91,7 @@ table_dict={key:RV_param_list[key] for key in param_bounds.keys()}
 orig_table_dict=copy.deepcopy(table_dict)
 #for param in forbidden_params:
 #    del table_dict[param]
-table_data={key:table_dict[key] for key in table_dict.keys()}
+table_data=[{"Parameter":key, "Value":table_dict[key]} for key in table_dict.keys()]
 table_names=list(table_dict.keys())
 SV_simulation_options=copy.deepcopy(simulation_options)
 DCV_simulation_options=copy.deepcopy(simulation_options)
@@ -118,6 +117,7 @@ RV.def_optim_list(list(table_names))
 SV.def_optim_list([])
 DCV.def_optim_list([])
 
+
 SV_simulation_options["no_transient"]=2/SV_param_list["omega"]
 SV_new=single_electron(None, SV_param_list, SV_simulation_options, other_values, param_bounds)
 
@@ -135,7 +135,6 @@ parameter_names=RV_param_list.keys()
 parameter_sliders=[]
 forbidden_params=["v", "d_E"]
 class_dict=dict(zip(["ramped", "sinusoidal", "dcv"], [RV, SV, DCV]))
-
 for key in parameter_names:
     if key in param_bounds:
         parameter_sliders.append(html.Div([
@@ -209,28 +208,28 @@ for e_type in ["ramped", "sinusoidal", "dcv"]:
                         id_str=("_").join([e_type, exp, str(i), "store"])+history
                         if history=="":
                             store_list[e_type].append(id_str)
-                            storage_array.append(dcc.Loading(dcc.Store(id=id_str), ))
+                            storage_array.append(dcc.Store(id=id_str))
                         else:
                             history_list[e_type].append(id_str)
-                            storage_array.append(dcc.Loading(dcc.Store(id=id_str), ))
+                            storage_array.append(dcc.Store(id=id_str, data=history_dict))
                 else:
                     id_str=("_").join([e_type, exp,"store"])+history
                     if history=="":
                         store_list[e_type].append(id_str)
-                        storage_array.append(dcc.Loading(dcc.Store(id=id_str), ))
+                        storage_array.append(dcc.Store(id=id_str))
                     else:
                         history_list[e_type].append(id_str)
-                        storage_array.append(dcc.Loading(dcc.Store(id=id_str), ))
+                        storage_array.append(dcc.Store(id=id_str, data=history_dict))
 
             elif e_type=="dcv":
                 if exp not in ["fft", "harms"]:
                     id_str=("_").join([e_type, exp,"store"])+history
                     if history=="":
                         store_list[e_type].append(id_str)
-                        storage_array.append(dcc.Loading(dcc.Store(id=id_str), ))
+                        storage_array.append(dcc.Store(id=id_str))
                     else:
                         history_list[e_type].append(id_str)
-                        storage_array.append(dcc.Loading(dcc.Store(id=id_str), ))
+                        storage_array.append(dcc.Store(id=id_str, data=history_dict))
 table_init={key:table_dict[key] for key in table_dict.keys() if key not in disped_params}
 table_init["Simulation"]="Current sim"
 for disp in disped_params:
@@ -268,7 +267,6 @@ app.layout = dbc.Container(
             fluid=True,
             className="jumbotron bg-white text-dark"
         ),dcc.Store(id="table_store"),
-        dbc.Col(storage_array),
         (dbc.Col([
             dbc.FormGroup(
                 [
@@ -329,7 +327,7 @@ app.layout = dbc.Container(
             value=[],
             id="adaptive_buttons",
         )])) ,]),
-
+        dbc.Row(storage_array),
         dbc.Row(
                 [
                 # here we place the controls we just defined,
@@ -419,7 +417,7 @@ num_states=len(storage_array)//2
 )
 def move_data_to_hidden(save_click,apply_click,clear_click, freeze_buttons,table_store, *stores):
     if clear_click>0:
-        return [*[{}]*num_states,table_store ,0]
+        return [*[{}]*num_states,0]
     if save_click>0 and apply_click>0:
         plot_number=str(save_click%max_plots)
         current_store=stores[:num_states]
@@ -532,7 +530,6 @@ def update_current_table(n_clicks, save_click, table_store, reset, drop_down_opt
 
 left_inputs={experiment:[Input(store_list[experiment][i], "data") for i in range(0, len(store_list[experiment])) if "harms" not in store_list[experiment][i]] for experiment in ["ramped", "sinusoidal", "dcv"]}
 left_history_states={experiment:[State(history_list[experiment][i], "data") for i in range(0, len(history_list[experiment])) if "harms" not in history_list[experiment][i]] for experiment in ["ramped", "sinusoidal", "dcv"]}
-
 def tab_renderer(active_tab, reset_button, *args):
     if active_tab is not None and args[0] is not None:
         exp_id=args[-1]
@@ -620,7 +617,7 @@ def apply_slider_changes(n_clicks, drop_down_opts, disp_bins, freeze_buttons, ad
             exp_class.simulation_options["no_transient"]=False
         new_class=single_electron(None, exp_class.dim_dict, exp_class.simulation_options, exp_class.other_values, param_bounds)
         if dispersion==True:
-            new_class.simulation_options["dispersion_bins"]=[disp_bins]*len(dispersed_params)
+            new_class.simulation_options["dispersion_bins"]=[disp_bins]
             new_class.def_optim_list(dispersion_optim_list)
             params=[new_class.dim_dict[param] for param in dispersion_optim_list]
         if experiment_type+"_scipy" in adaptive_buttons and dispersion==False:
@@ -737,4 +734,4 @@ for experiment in ["ramped", "sinusoidal"]:
         )(plot_harmonics)
 
 if __name__ == '__main__':
-    app.run_server(host='0.0.0.0', port=8050, debug=False)
+    app.run_server(host='0.0.0.0', port=8050, debug=True)
