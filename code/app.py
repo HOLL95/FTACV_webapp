@@ -55,6 +55,7 @@ param_bounds={
     "sampling_freq":[1/1000.0, 1/10.0],
     'E_0':[-2, 4],
     'omega':[1, 1e5],#8.88480830076,  #    (frequency Hz)
+    'v':[0.001, 10],
     'Ru': [0, 5e5],  #     (uncompensated resistance ohms)
     'Cdl': [0,2e-3], #(capacitance parameters)
     'CdlE1': [-0.01,0.01],#0.000653657774506,
@@ -623,9 +624,14 @@ def apply_slider_changes(n_clicks, drop_down_opts, disp_bins, freeze_buttons, ad
         elif experiment_type=="ramped":
             exp_class.simulation_options["no_transient"]=2/exp_class.dim_dict["omega"]
             exp_class.dim_dict["d_E"]=(exp_class.dim_dict["E_reverse"]-RV.dim_dict["E_start"])/4
+            if exp_class.dim_dict["omega"]<(10*exp_class.dim_dict["v"]):
+                return [{"figure_object":{"layout": ramped_layout}}]*len(labels["ramped"]["y"])+[{"layout": harmonic_layout}]*(num_harms)
+            #exp_class.dim_dict["sampling_freq"]=exp_class.dim_dict["sampling_freq"]/exp_class.dim_dict["v"]
         elif experiment_type=="dcv":
             exp_class.simulation_options["no_transient"]=False
+            exp_class.dim_dict["sampling_freq"]=exp_class.dim_dict["sampling_freq"]/exp_class.dim_dict["v"]
         new_class=single_electron(None, exp_class.dim_dict, exp_class.simulation_options, exp_class.other_values, param_bounds)
+        print(exp_class.dim_dict["v"])
         if dispersion==True:
             new_class.simulation_options["dispersion_bins"]=[disp_bins]*len(dispersed_params)
             new_class.def_optim_list(dispersion_optim_list)
